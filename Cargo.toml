@@ -17,5 +17,6 @@ path = "src/lib.rs"
 structopt = "0.3"
 pad = "0.1.5"
 yansi = "0.5.0"
+regex = "1.11.2"
 
 [features]

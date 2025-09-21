@@ -1,8 +1,22 @@
 // borrowed from
 // https://github.com/cbednarski/hostess/blob/master/hostfile.go
 
+
+use regex::Regex;
 use super::hostlist;
 use super::hostname;
+  fn pattern_to_regex(pattern: &str) -> Regex {
+    let mut regex_pattern = String::from("^");
+    for c in pattern.chars() {
+      match c {
+        '*' => regex_pattern.push_str(".*"),
+        '.' => regex_pattern.push_str("\\."),
+        _ => regex_pattern.push(c),
+      }
+    }
+    regex_pattern.push('$');
+    Regex::new(&regex_pattern).unwrap()
+  }
 
 use pad::*;
 use std::cmp;
@@ -64,35 +78,50 @@ impl Hostfile {
     Ok(())
   }
 
-  /// remove item from hosts
-  pub fn remove(&mut self, domain: String) {
-    self
-      .hosts
-      .retain(|host| host.domain != Some(domain.clone()));
-    println!("{} {}", domain, Paint::red("removed!"));
+  // remove item from hosts (supports wildcards)
+  pub fn remove(&mut self, pattern: String) {
+    let regex = pattern_to_regex(&pattern);
+    let before = self.hosts.len();
+    self.hosts.retain(|host| {
+      match &host.domain {
+        Some(domain) => !regex.is_match(domain),
+        None => true,
+      }
+    });
+    let removed = before - self.hosts.len();
+    println!("{} {} ({} removed)", pattern, Paint::red("removed!"), removed);
     self.save();
   }
 
-  // enable item
-  pub fn on(&mut self, domain: String) {
+  // enable item (supports wildcards)
+  pub fn on(&mut self, pattern: String) {
+    let regex = pattern_to_regex(&pattern);
+    let mut changed = 0;
     for host in &mut self.hosts {
-      if host.domain == Some(domain.clone()) {
-        host.enabled = true;
+      if let Some(domain) = &host.domain {
+        if regex.is_match(domain) {
+          host.enabled = true;
+          changed += 1;
+        }
       }
     }
     self.save();
-    println!("{}", Paint::green("success!"));
+    println!("{} {} ({} enabled)", pattern, Paint::green("success!"), changed);
   }
 
-  // disable item
-  pub fn off(&mut self, domain: String) {
+  // disable item (supports wildcards)
+  pub fn off(&mut self, pattern: String) {
+    let regex = pattern_to_regex(&pattern);
+    let mut changed = 0;
     for host in &mut self.hosts {
-      if host.domain == Some(domain.clone()) {
-        host.enabled = false;
+      if let Some(domain) = &host.domain {
+        if regex.is_match(domain) {
+          host.enabled = false;
+          changed += 1;
+        }
       }
     }
-
-    println!("{} {}", domain, Paint::green("disabled!"));
+    println!("{} {} ({} disabled)", pattern, Paint::green("disabled!"), changed);
     self.save();
   }
 
